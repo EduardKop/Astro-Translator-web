@@ -32,14 +32,16 @@ export default function Home() {
       .catch(() => {})
   }, [])
 
-  // Load countries
+  // Load countries + restore from localStorage
   useEffect(() => {
     fetch("/api/countries")
       .then((r) => r.json())
       .then((d) => {
         if (d.countries?.length > 0) {
           setCountries(d.countries)
-          setSelectedCountry(d.countries[0].name)
+          const saved = localStorage.getItem("selectedCountry")
+          const exists = d.countries.find((c: any) => c.name === saved)
+          setSelectedCountry(exists ? saved! : d.countries[0].name)
         }
       })
       .catch(() => {})
@@ -133,7 +135,10 @@ export default function Home() {
     <main className="flex flex-col h-screen overflow-hidden">
       <Navbar
         selectedCountry={selectedCountry}
-        setSelectedCountry={setSelectedCountry}
+        setSelectedCountry={(c) => {
+          setSelectedCountry(c)
+          localStorage.setItem("selectedCountry", c)
+        }}
         countries={countries}
         user={user}
         onLogout={async () => {
