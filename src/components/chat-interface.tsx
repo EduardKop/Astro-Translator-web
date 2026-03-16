@@ -65,7 +65,7 @@ export function ChatInterface({
         >
           <div className="relative flex-1 bg-background border shadow-sm rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary/50 transition-all">
             <textarea
-              className="w-full bg-transparent outline-none p-3 sm:p-4 min-h-[48px] sm:min-h-[56px] max-h-[150px] sm:max-h-[200px] resize-none pb-3 sm:pb-4 text-sm sm:text-base"
+              className="w-full bg-transparent outline-none p-3 sm:p-4 min-h-[48px] sm:min-h-[56px] max-h-[150px] sm:max-h-[200px] resize-none pb-3 sm:pb-4 text-base"
               placeholder="Введи текст для перевода..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
