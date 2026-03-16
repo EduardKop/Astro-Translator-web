@@ -128,11 +128,11 @@ export function HistoryPanel({
   return (
     <div className="flex flex-col h-full bg-[#08080f]">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-3 bg-background/80 backdrop-blur-md border-b">
-        <Clock className="w-4 h-4 text-primary" />
-        <span className="text-sm font-semibold">История переводов</span>
+      <div className="sticky top-0 z-10 flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 bg-background/80 backdrop-blur-md border-b">
+        <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+        <span className="text-xs sm:text-sm font-semibold">История переводов</span>
         {entries.length > 0 && (
-          <span className="ml-1 text-[10px] text-muted-foreground/50">{entries.length}</span>
+          <span className="ml-1 text-[9px] sm:text-[10px] text-muted-foreground/50">{entries.length}</span>
         )}
         {onRefresh && (
           <button

@@ -145,13 +145,13 @@ export function Navbar({
 
   return (
     <>
-      <nav className="flex items-center gap-3 px-5 border-b bg-card flex-shrink-0 py-2.5">
+      <nav className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 border-b bg-card flex-shrink-0 py-2.5 overflow-x-auto no-scrollbar">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
           <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary border border-primary/20 shadow-[0_0_12px_rgba(59,130,246,0.25)]">
             <Globe className="w-4 h-4" />
           </div>
-          <div className="leading-none">
+          <div className="leading-none hidden sm:block">
             <h1 className="text-sm font-bold tracking-tight whitespace-nowrap">Astro Translator</h1>
             <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider">SMM Localization</p>
           </div>
@@ -163,12 +163,12 @@ export function Navbar({
         {/* Country picker button */}
         <button
           onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl border border-primary/40 bg-primary/8 hover:bg-primary/12 hover:border-primary/60 transition-all duration-150 shadow-[0_0_8px_rgba(59,130,246,0.12)] group"
+          className="flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-primary/40 bg-primary/8 hover:bg-primary/12 hover:border-primary/60 transition-all duration-150 shadow-[0_0_8px_rgba(59,130,246,0.12)] group flex-shrink-0"
         >
           {currentCountry ? (
             <>
               <span className="text-lg leading-none">{currentCountry.emoji}</span>
-              <div className="leading-none text-left">
+              <div className="leading-none text-left hidden sm:block">
                 <p className="text-[12px] font-semibold text-primary">{currentCountry.nameRu}</p>
                 <p className="text-[9px] text-muted-foreground/60 mt-0.5">Сменить страну</p>
               </div>
@@ -176,7 +176,7 @@ export function Navbar({
           ) : (
             <>
               <Globe className="w-4 h-4 text-muted-foreground" />
-              <div className="leading-none text-left">
+              <div className="leading-none text-left hidden sm:block">
                 <p className="text-[12px] font-semibold text-foreground/70">Выбрать страну</p>
                 <p className="text-[9px] text-muted-foreground/60 mt-0.5">Не выбрано</p>
               </div>
@@ -189,10 +189,10 @@ export function Navbar({
         {canEditPrompts && (
           <button
             onClick={() => setPromptsOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border/40 bg-background/40 hover:border-primary/40 hover:bg-primary/5 transition-all duration-150 group"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-border/40 bg-background/40 hover:border-primary/40 hover:bg-primary/5 transition-all duration-150 group flex-shrink-0"
           >
             <Settings className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
-            <div className="leading-none text-left">
+            <div className="leading-none text-left hidden sm:block">
               <p className="text-[12px] font-semibold text-foreground/70 group-hover:text-foreground transition-colors">Настройка промптов</p>
               <p className="text-[9px] text-muted-foreground/50 mt-0.5">AI агенты</p>
             </div>
@@ -209,13 +209,13 @@ export function Navbar({
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* User info */}
           {user && (
-            <div className="flex items-center gap-2 border rounded-lg px-2.5 py-1.5 bg-background/60">
+            <div className="flex items-center gap-1.5 sm:gap-2 border rounded-lg px-1.5 sm:px-2.5 py-1 sm:py-1.5 bg-background/60 flex-shrink-0">
               {user.avatar_url ? (
                 <img src={user.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
               ) : (
                 <User className="w-3.5 h-3.5 text-muted-foreground" />
               )}
-              <div className="leading-none">
+              <div className="leading-none hidden sm:block">
                 <p className="text-[11px] font-semibold">{user.name.split(" ")[0]}</p>
                 <p className="text-[9px] text-muted-foreground/60">{user.role}</p>
               </div>

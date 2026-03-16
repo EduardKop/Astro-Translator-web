@@ -147,9 +147,9 @@ export default function Home() {
         }}
       />
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left: Chat */}
-        <div className="w-1/2 min-w-[300px] border-r border-border">
+        <div className="flex-1 md:w-1/2 md:min-w-[300px] border-b md:border-b-0 md:border-r border-border flex flex-col overflow-hidden">
           <ChatInterface
             messages={messages}
             input={input}
@@ -160,7 +160,7 @@ export default function Home() {
         </div>
 
         {/* Right: tabbed panel */}
-        <div className="w-1/2 min-w-[300px] flex flex-col overflow-hidden">
+        <div className="flex-1 md:w-1/2 md:min-w-[300px] flex flex-col overflow-hidden">
           <div className="flex border-b border-border bg-background/80 backdrop-blur-md flex-shrink-0">
             <TabButton
               active={rightTab === "pipeline"}
