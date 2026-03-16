@@ -13,7 +13,10 @@ export async function GET() {
     .select("id, key, name_ru, description, template, updated_at")
     .order("key")
 
-  if (error) return NextResponse.json({ error: "DB error" }, { status: 500 })
+  if (error) {
+    console.error("Prompts fetch error:", error)
+    return NextResponse.json({ error: "DB error", detail: error.message }, { status: 500 })
+  }
   return NextResponse.json({ prompts: data })
 }
 
@@ -37,6 +40,9 @@ export async function PATCH(req: Request) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: "DB error" }, { status: 500 })
+  if (error) {
+    console.error("Prompts update error:", error)
+    return NextResponse.json({ error: "DB error", detail: error.message }, { status: 500 })
+  }
   return NextResponse.json({ prompt: data })
 }

@@ -45,104 +45,27 @@ function makeStep(
   return { name, nameRu, description, prompt, output, status: "completed" }
 }
 
-// ── Load prompts from Supabase (fallback to hardcoded) ───────────────────────
-async function loadPrompts(): Promise<Record<string, string>> {
-  try {
-    const { data } = await supabase
-      .from("translator_prompts")
-      .select("key, template")
-    if (data && data.length > 0) {
-      return Object.fromEntries(data.map((p: any) => [p.key, p.template]))
-    }
-  } catch {}
-  return {} // fallback: will use inline builders below
-}
-
 // ── Template renderer — replaces {{var}} placeholders ────────────────────────
 function render(tpl: string, vars: Record<string, string>): string {
   return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "")
 }
 
-// ── Inline prompt builders (fallback if DB is empty) ────────────────────────
-function draftPrompt(targetCountry: string, targetLang: string, userText: string, feedbackBlock: string) {
-  return `You are a professional translator. Translate the text below into ${targetLang} (${targetCountry}).
-${feedbackBlock}
-Rules:
-- Output ONLY the translated text. Nothing else.
-- Do NOT add greetings, conclusions, explanations, or any text not in the original.
-- Do NOT remove any sentences. Every sentence in = every sentence out.
-- Keep all emojis and paragraph breaks exactly as they are.
-- Use the natural, modern dialect spoken in ${targetCountry}.
-- Address the recipient informally (singular "you"). Never use formal address.
-- The recipient is female. Use feminine verb/adjective forms where applicable.
+// ── Load prompts from Supabase (required) ────────────────────────────────────
+async function loadPrompts(): Promise<Record<string, string>> {
+  const { data, error } = await supabase
+    .from("translator_prompts")
+    .select("key, template")
 
-Text to translate:
-${userText}`
-}
+  if (error || !data || data.length === 0) {
+    throw new Error("Промпты не найдены в БД. Выполни SQL из supabase_translator.sql")
+  }
 
-function critiquePrompt(targetCountry: string, draft: string) {
-  return `You are a native SMM editor from ${targetCountry}.
-
-Read the translation below. Your only job is to identify phrases that sound robotic, translated, or unnatural — and suggest a warmer, more native alternative for each one.
-
-Rules:
-- Do NOT rewrite the full text.
-- Do NOT add new sentences or ideas.
-- Output ONLY bullet points: [original phrase] → [suggested fix].
-- Focus on tone: it should feel warm, soulful, effortless — like a real person wrote it.
-
-Translation:
-${draft}`
-}
-
-function polishPrompt(targetCountry: string, draft: string, critique: string) {
-  return `You are rewriting a translated text to remove all traces of AI and machine translation.
-
-Your only job: make the text sound exactly like a real person from ${targetCountry} wrote it — using the natural communication style, expressions, rhythm, and emotional warmth typical of that country's culture.
-
-Rules:
-- Output ONLY the final text. No labels, no comments, no preamble.
-- Do NOT add any sentences not present in the draft. Do NOT remove any sentences.
-- Eliminate any phrasing that sounds robotic, overly formal, or like it came from a machine.
-- Use the specific speech patterns, colloquialisms, and emotional register of ${targetCountry}.
-- The result must feel like a real person from ${targetCountry}} typed this — not a translation.
-- Preserve all emojis and paragraph formatting exactly as in the draft.
-
---- DRAFT ---
-${draft}
-
---- CRITIQUE NOTES ---
-${critique}`
-}
-
-function qualityPrompt(targetCountry: string, originalText: string, polishedText: string) {
-  return `You are a quality reviewer for SMM translations targeting ${targetCountry}.
-
-Compare the translation to the original. Return ONLY one of:
-- "PASS" — translation is accurate, native-sounding, feminine, warm, and matches the original 1:1.
-- "FAIL: <brief bullet list of specific issues>" — if any critical problems remain.
-
-Criteria:
-1. No additions or omissions — every sentence maps 1:1.
-2. Sounds like a real native wrote it, not a translation.
-3. Feminine verb/adjective forms used where applicable.
-4. Informal address only — no formal pronouns.
-5. Tone is warm and natural, matching how women in ${targetCountry} actually speak.
-6. No AI-sounding or robotic phrasing.
-
---- ORIGINAL ---
-${originalText}
-
---- TRANSLATION ---
-${polishedText}
-
-Your verdict (PASS or FAIL: ...):`.trim()
+  return Object.fromEntries(data.map((p: any) => [p.key, p.template]))
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
-    // Auth check
     const session = await getSession()
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -173,30 +96,22 @@ export async function POST(req: Request) {
         : ""
 
       // Stage 1: Draft
-      const dp = dbPrompts["draft"]
-        ? render(dbPrompts["draft"], { targetLang: lang, targetCountry, feedbackBlock, userText: text })
-        : draftPrompt(targetCountry, lang, text, feedbackBlock)
+      const dp = render(dbPrompts["draft"], { targetLang: lang, targetCountry, feedbackBlock, userText: text })
       const draft = await askAI(dp)
       steps.push(makeStep("draft", "Переводчик", "Создаёт первичный черновик перевода", dp, draft))
 
       // Stage 2: Critique
-      const cp = dbPrompts["critique"]
-        ? render(dbPrompts["critique"], { targetCountry, draft })
-        : critiquePrompt(targetCountry, draft)
+      const cp = render(dbPrompts["critique"], { targetCountry, draft })
       const critique = await askAI(cp)
       steps.push(makeStep("critique", "Нейтивный редактор", "Выявляет AI-тени и нативность", cp, critique))
 
       // Stage 3: Polish
-      const pp = dbPrompts["polish"]
-        ? render(dbPrompts["polish"], { targetCountry, draft, critique })
-        : polishPrompt(targetCountry, draft, critique)
+      const pp = render(dbPrompts["polish"], { targetCountry, draft, critique })
       const polished = await askAI(pp)
       steps.push(makeStep("polish", "Контент-криэйтор", "Убирает признаки перевода и ИИ", pp, polished))
 
       // Stage 4: Quality
-      const qp = dbPrompts["quality"]
-        ? render(dbPrompts["quality"], { targetCountry, originalText: text, polishedText: polished })
-        : qualityPrompt(targetCountry, text, polished)
+      const qp = render(dbPrompts["quality"], { targetCountry, originalText: text, polishedText: polished })
       const qualityOutput = await askAI(qp)
       const qualityPassed = qualityOutput.trim().toUpperCase().startsWith("PASS")
       steps.push(makeStep("quality", "Контроль качества", "Финальная проверка точности и нативности", qp, qualityOutput))
@@ -223,7 +138,6 @@ export async function POST(req: Request) {
       })
     } catch (dbErr) {
       console.error("Failed to save translation:", dbErr)
-      // Non-fatal — translation still returns OK
     }
 
     return NextResponse.json({ translation: finalTranslation, loops, totalLoops: loopCount })

@@ -5,6 +5,9 @@ import { Moon, Sun, Globe, LogOut, Settings, BarChart2, User, ChevronDown, Searc
 import { useEffect, useRef, useState } from "react"
 import { Country, Manager, ADMIN_ROLES } from "@/types"
 import Link from "next/link"
+import { PromptsModal } from "@/components/prompts-modal"
+
+const PROMPTS_ROLES = ["Admin", "C-level", "SeniorSMM"]
 
 // ── Country Picker Modal ──────────────────────────────────────────────────────
 function CountryModal({
@@ -130,11 +133,13 @@ export function Navbar({
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [promptsOpen, setPromptsOpen] = useState(false)
 
   useEffect(() => setMounted(true), [])
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark")
   const isAdmin = user ? ADMIN_ROLES.includes(user.role) : false
+  const canEditPrompts = user ? PROMPTS_ROLES.includes(user.role) : false
 
   const currentCountry = countries.find((c) => c.name === selectedCountry)
 
@@ -179,6 +184,20 @@ export function Navbar({
           )}
           <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/60 group-hover:text-primary/60 transition-colors ml-0.5" />
         </button>
+
+        {/* Prompts settings button (Admin / C-level / SeniorSMM only) */}
+        {canEditPrompts && (
+          <button
+            onClick={() => setPromptsOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border/40 bg-background/40 hover:border-primary/40 hover:bg-primary/5 transition-all duration-150 group"
+          >
+            <Settings className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+            <div className="leading-none text-left">
+              <p className="text-[12px] font-semibold text-foreground/70 group-hover:text-foreground transition-colors">Настройка промптов</p>
+              <p className="text-[9px] text-muted-foreground/50 mt-0.5">AI агенты</p>
+            </div>
+          </button>
+        )}
 
         {/* Spacer */}
         <div className="flex-1" />
@@ -247,7 +266,7 @@ export function Navbar({
         </div>
       </nav>
 
-      {/* Modal */}
+      {/* Country Modal */}
       {modalOpen && (
         <CountryModal
           countries={countries}
@@ -255,6 +274,11 @@ export function Navbar({
           onSelect={setSelectedCountry}
           onClose={() => setModalOpen(false)}
         />
+      )}
+
+      {/* Prompts Modal */}
+      {promptsOpen && (
+        <PromptsModal onClose={() => setPromptsOpen(false)} />
       )}
     </>
   )
