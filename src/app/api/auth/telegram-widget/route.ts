@@ -21,7 +21,9 @@ export async function GET(req: Request) {
     .join("\n")
 
   const botToken = process.env.BOT_TOKEN || ""
-  const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest()
+  // Telegram Login Widget uses SHA256 hash of bot token as secret key
+  const { createHash } = await import("crypto")
+  const secretKey = createHash("sha256").update(botToken).digest()
   const expectedHash = createHmac("sha256", secretKey)
     .update(dataCheckString)
     .digest("hex")

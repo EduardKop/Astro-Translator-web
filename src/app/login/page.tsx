@@ -1,30 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Globe, Loader2, Shield, Send, ExternalLink } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { Globe, Loader2, Shield } from "lucide-react"
 import { Suspense } from "react"
 
 const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "Astro_Translator_Auth_bot"
 
 // ── Main page (wrapped in Suspense for useSearchParams) ───────────────────────
 function LoginContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle")
   const [errorMsg, setErrorMsg] = useState("")
-
+  const widgetRef = useRef<HTMLDivElement>(null)
 
   const errorCode = searchParams.get("error")
-
-  // Auto-login if inside Telegram WebApp
-  useEffect(() => {
-    const tg = (window as any).Telegram?.WebApp
-    if (tg?.initDataUnsafe?.user?.id) {
-      doLogin(String(tg.initDataUnsafe.user.id))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Show error from redirect params
   useEffect(() => {
@@ -37,25 +27,21 @@ function LoginContent() {
     }
   }, [errorCode])
 
-  async function doLogin(telegramId: string) {
-    setStatus("loading")
-    try {
-      const res = await fetch("/api/auth/telegram", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telegram_id: telegramId }),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Нет доступа")
-      }
-      router.push("/")
-      router.refresh()
-    } catch (err: any) {
-      setStatus("error")
-      setErrorMsg(err.message)
-    }
-  }
+  // Inject Telegram Login Widget script
+  useEffect(() => {
+    if (!widgetRef.current) return
+    widgetRef.current.innerHTML = ""
+
+    const script = document.createElement("script")
+    script.src = "https://telegram.org/js/telegram-widget.js?22"
+    script.setAttribute("data-telegram-login", BOT_USERNAME)
+    script.setAttribute("data-size", "large")
+    script.setAttribute("data-auth-url", "/api/auth/telegram-widget")
+    script.setAttribute("data-request-access", "write")
+    script.async = true
+
+    widgetRef.current.appendChild(script)
+  }, [])
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -85,34 +71,21 @@ function LoginContent() {
 
           <div className="p-5 space-y-5">
 
-            {status === "idle" && (
+            {(status === "idle" || status === "error") && (
               <>
+                {status === "error" && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                    <p className="text-sm text-red-400 font-semibold mb-1">Нет доступа</p>
+                    <p className="text-xs text-red-400/70">{errorMsg}</p>
+                  </div>
+                )}
+
                 <p className="text-[13px] text-muted-foreground leading-relaxed">
-                  Доступ только для авторизованных сотрудников.
+                  Доступ только для авторизованных сотрудников. Нажми кнопку ниже и войди через Telegram.
                 </p>
 
-                {/* Primary: open bot in Telegram */}
-                <a
-                  href={`https://t.me/${BOT_USERNAME}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2.5 w-full py-3 px-4 rounded-xl bg-[#229ED9] hover:bg-[#1a8bc2] text-white font-semibold text-sm transition-colors shadow-md"
-                >
-                  <Send className="w-4 h-4" />
-                  Открыть в Telegram
-                  <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-                </a>
-
-                <p className="text-[11px] text-muted-foreground/60 text-center leading-relaxed">
-                  Напиши боту{" "}
-                  <span className="font-semibold text-primary">
-                    @{BOT_USERNAME}
-                  </span>{" "}
-                  команду <span className="font-semibold text-primary">/start</span>{" "}
-                  — он откроет переводчик прямо в Telegram
-                </p>
-
-
+                {/* Telegram Login Widget */}
+                <div className="flex justify-center" ref={widgetRef} />
               </>
             )}
 
@@ -120,21 +93,6 @@ function LoginContent() {
               <div className="flex flex-col items-center gap-3 py-6">
                 <Loader2 className="w-8 h-8 text-primary animate-spin" />
                 <p className="text-sm text-muted-foreground">Проверяем доступ...</p>
-              </div>
-            )}
-
-            {status === "error" && (
-              <div className="space-y-4">
-                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-                  <p className="text-sm text-red-400 font-semibold mb-1">Нет доступа</p>
-                  <p className="text-xs text-red-400/70">{errorMsg}</p>
-                </div>
-                <button
-                  onClick={() => { setStatus("idle"); setErrorMsg("") }}
-                  className="w-full text-sm text-primary hover:underline py-1"
-                >
-                  Попробовать снова
-                </button>
               </div>
             )}
 

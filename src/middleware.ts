@@ -7,7 +7,7 @@ const SECRET = new TextEncoder().encode(
 )
 const COOKIE_NAME = "ast_session"
 
-const PUBLIC_PATHS = ["/login", "/api/auth/telegram", "/api/auth/logout"]
+const PUBLIC_PATHS = ["/login", "/api/auth/telegram", "/api/auth/logout", "/api/auth/telegram-widget"]
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
