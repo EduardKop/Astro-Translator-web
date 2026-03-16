@@ -3,6 +3,25 @@
 -- Запускать в Supabase → SQL Editor
 -- ============================================================
 
+-- ============================================================
+-- 0. Одноразовые токены для авторизации через Telegram-бота
+-- ============================================================
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  token       text PRIMARY KEY,                        -- UUID v4 одноразовый токен
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  expires_at  timestamptz NOT NULL DEFAULT now() + interval '10 minutes',
+  used        boolean NOT NULL DEFAULT false,
+  manager_id  uuid REFERENCES managers(id) ON DELETE CASCADE  -- заполняется ботом после верификации
+);
+
+-- Автоудаление протухших токенов (опционально, можно чистить по cron)
+CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at);
+
+-- RLS: доступ только через service_role (anon не читает)
+ALTER TABLE auth_tokens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_only" ON auth_tokens USING (false);
+
+
 -- 1. История переводов
 CREATE TABLE IF NOT EXISTS translator_translations (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),

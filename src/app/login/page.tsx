@@ -1,47 +1,87 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useSearchParams } from "next/navigation"
-import { Globe, Loader2, Shield } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Globe, Loader2, Shield, Send } from "lucide-react"
 import { Suspense } from "react"
 
-const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "Astro_Translator_Auth_bot"
-
-// ── Main page (wrapped in Suspense for useSearchParams) ───────────────────────
+// ── Main page ─────────────────────────────────────────────────────────────────
 function LoginContent() {
-  const searchParams = useSearchParams()
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle")
+  const router = useRouter()
+  const [status, setStatus] = useState<"idle" | "waiting" | "error">("idle")
   const [errorMsg, setErrorMsg] = useState("")
-  const widgetRef = useRef<HTMLDivElement>(null)
+  const [botUrl, setBotUrl] = useState("")
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const tokenRef = useRef<string>("")
 
-  const errorCode = searchParams.get("error")
-
-  // Show error from redirect params
+  // Cleanup polling on unmount
   useEffect(() => {
-    if (errorCode === "denied") {
-      setStatus("error")
-      setErrorMsg("У тебя нет доступа. Обратись к администратору.")
-    } else if (errorCode === "invalid" || errorCode === "expired") {
-      setStatus("error")
-      setErrorMsg("Ссылка устарела или невалидна. Попробуй ещё раз.")
-    }
-  }, [errorCode])
-
-  // Inject Telegram Login Widget script
-  useEffect(() => {
-    if (!widgetRef.current) return
-    widgetRef.current.innerHTML = ""
-
-    const script = document.createElement("script")
-    script.src = "https://telegram.org/js/telegram-widget.js?22"
-    script.setAttribute("data-telegram-login", BOT_USERNAME)
-    script.setAttribute("data-size", "large")
-    script.setAttribute("data-auth-url", "/api/auth/telegram-widget")
-    script.setAttribute("data-request-access", "write")
-    script.async = true
-
-    widgetRef.current.appendChild(script)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
+
+  async function startLogin() {
+    setStatus("waiting")
+    setErrorMsg("")
+
+    try {
+      // 1. Генерируем токен на сервере
+      const res = await fetch("/api/auth/token", { method: "POST" })
+      if (!res.ok) throw new Error("Не удалось создать токен")
+      const { token, botUrl: url } = await res.json()
+
+      tokenRef.current = token
+      setBotUrl(url)
+
+      // 2. Открываем бота с токеном
+      window.open(url, "_blank")
+
+      // 3. Polling каждые 2 секунды
+      pollRef.current = setInterval(async () => {
+        try {
+          const r = await fetch(`/api/auth/poll?token=${token}`)
+          const d = await r.json()
+
+          if (d.status === "ok") {
+            clearInterval(pollRef.current!)
+            router.push("/")
+            router.refresh()
+          } else if (d.status === "expired") {
+            clearInterval(pollRef.current!)
+            setStatus("error")
+            setErrorMsg("Время вышло. Попробуй снова.")
+          } else if (d.status === "denied") {
+            clearInterval(pollRef.current!)
+            setStatus("error")
+            setErrorMsg("У тебя нет доступа. Обратись к администратору.")
+          }
+          // "pending" — продолжаем polling
+        } catch {
+          // сетевая ошибка — игнорируем, продолжаем
+        }
+      }, 2000)
+
+      // Таймаут 10 минут
+      setTimeout(() => {
+        if (pollRef.current) {
+          clearInterval(pollRef.current)
+          setStatus("error")
+          setErrorMsg("Время вышло. Попробуй снова.")
+        }
+      }, 10 * 60 * 1000)
+
+    } catch (err: any) {
+      setStatus("error")
+      setErrorMsg(err.message || "Ошибка. Попробуй снова.")
+    }
+  }
+
+  function reset() {
+    if (pollRef.current) clearInterval(pollRef.current)
+    setBotUrl("")
+    tokenRef.current = ""
+    setStatus("idle")
+    setErrorMsg("")
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -71,28 +111,59 @@ function LoginContent() {
 
           <div className="p-5 space-y-5">
 
-            {(status === "idle" || status === "error") && (
+            {status === "idle" && (
               <>
-                {status === "error" && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-                    <p className="text-sm text-red-400 font-semibold mb-1">Нет доступа</p>
-                    <p className="text-xs text-red-400/70">{errorMsg}</p>
-                  </div>
-                )}
-
                 <p className="text-[13px] text-muted-foreground leading-relaxed">
-                  Доступ только для авторизованных сотрудников. Нажми кнопку ниже и войди через Telegram.
+                  Доступ только для авторизованных сотрудников.
                 </p>
-
-                {/* Telegram Login Widget */}
-                <div className="flex justify-center" ref={widgetRef} />
+                <button
+                  onClick={startLogin}
+                  className="flex items-center justify-center gap-2.5 w-full py-3 px-4 rounded-xl bg-[#229ED9] hover:bg-[#1a8bc2] text-white font-semibold text-sm transition-colors shadow-md"
+                >
+                  <Send className="w-4 h-4" />
+                  Войти через Telegram
+                </button>
               </>
             )}
 
-            {status === "loading" && (
-              <div className="flex flex-col items-center gap-3 py-6">
+            {status === "waiting" && (
+              <div className="flex flex-col items-center gap-4 py-4">
                 <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                <p className="text-sm text-muted-foreground">Проверяем доступ...</p>
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-medium">Ожидаем подтверждения</p>
+                  <p className="text-[12px] text-muted-foreground leading-relaxed">
+                    Напиши боту <span className="text-primary font-semibold">/start</span> в Telegram
+                  </p>
+                </div>
+                {botUrl && (
+                  <a
+                    href={botUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-primary hover:underline"
+                  >
+                    <Send className="w-3 h-3" />
+                    Открыть бота снова
+                  </a>
+                )}
+                <button onClick={reset} className="text-xs text-muted-foreground hover:text-foreground">
+                  Отмена
+                </button>
+              </div>
+            )}
+
+            {status === "error" && (
+              <div className="space-y-4">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                  <p className="text-sm text-red-400 font-semibold mb-1">Ошибка входа</p>
+                  <p className="text-xs text-red-400/70">{errorMsg}</p>
+                </div>
+                <button
+                  onClick={reset}
+                  className="w-full text-sm text-primary hover:underline py-1"
+                >
+                  Попробовать снова
+                </button>
               </div>
             )}
 
