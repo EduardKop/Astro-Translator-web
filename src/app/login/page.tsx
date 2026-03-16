@@ -14,6 +14,7 @@ function LoginContent() {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle")
   const [errorMsg, setErrorMsg] = useState("")
 
+
   const errorCode = searchParams.get("error")
 
   // Auto-login if inside Telegram WebApp
