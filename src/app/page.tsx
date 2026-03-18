@@ -48,7 +48,12 @@ export default function Home() {
       .catch(() => {})
 
     const savedTone = localStorage.getItem("selectedTone")
-    if (savedTone) setTone(savedTone)
+    if (savedTone === "Душевная / Добрая" || savedTone === "Красочный") {
+      setTone("Добрый / Душевный")
+      localStorage.setItem("selectedTone", "Добрый / Душевный")
+    } else if (savedTone) {
+      setTone(savedTone)
+    }
   }, [])
 
   // Load history from API

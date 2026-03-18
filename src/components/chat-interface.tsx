@@ -20,7 +20,7 @@ export function ChatInterface({
   tone: string
   setTone: (v: string) => void
 }) {
-  const TONES = ["Душевная / Добрая", "Стандартный перевод", "Красочный"]
+  const TONES = ["Стандартный перевод", "Добрый / Душевный"]
 
   return (
     <div className="flex flex-col h-full bg-background border-r">
