@@ -8,7 +8,6 @@ const OPENROUTER_DEFAULT_MODEL =
   process.env.OPENROUTER_DEFAULT_MODEL || "google/gemini-2.5-flash"
 const OPENROUTER_DRAFT_MODEL =
   process.env.OPENROUTER_DRAFT_MODEL || OPENROUTER_DEFAULT_MODEL
-const MAX_LOOPS = 3
 
 // ── OpenRouter call ───────────────────────────────────────────────────────────
 async function askAI(content: string, model?: string): Promise<string> {
@@ -106,7 +105,7 @@ export async function POST(req: Request) {
 
     // Stage 4: Refiner
     const rp = render(dbPrompts["refiner"], { targetCountry, userText: text, translator: translatorOutput, critic: criticOutput, terminologist: terminologistOutput })
-    const finalTranslation = await askAI(rp)
+    const finalTranslation = await askAI(rp, OPENROUTER_DRAFT_MODEL)
     steps.push(makeStep("refiner", "Редактор (Final Refiner)", "Формирует финальный текст", rp, finalTranslation))
 
     const loopCount = 1
