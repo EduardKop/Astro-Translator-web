@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS translator_prompts (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now(),
-  key         text UNIQUE NOT NULL,   -- 'translator' | 'critic' | 'terminologist' | 'refiner'
+  key         text UNIQUE NOT NULL,   -- 'translator' | 'critic' | 'terminologist' | 'stylist' | 'refiner'
   name_ru     text NOT NULL,
   description text,
   template    text NOT NULL           -- текст промпта с плейсхолдерами {{targetCountry}} и т.д.
@@ -129,12 +129,25 @@ Draft Translation:
 {{translator}}'
 ),
 (
+  'stylist',
+  'Стилист (Tone & Vibe)',
+  'Оценивает и адаптирует эмоциональный окрас',
+  'You are a Tone & Vibe Stylist. Review the translation below for a {{targetCountry}} audience.
+DO NOT provide a new translation. Instead, provide a list of bullet-point suggestions focusing ONLY on adjusting the text to match the requested tone: "{{tone}}"
+
+Original text:
+{{userText}}
+
+Draft Translation:
+{{translator}}'
+),
+(
   'refiner',
   'Редактор (Final Refiner)',
   'Формирует финальный текст с учётом всех правок',
   'You are an expert Final Refiner. Your task is to produce the final, polished translation for a {{targetCountry}} audience.
-You are provided with the original text, a rough draft translation, and feedback from two specialists (a Cultural Critic and a Terminologist).
-Use the feedback to improve the draft translation.
+You are provided with the original text, a rough draft translation, and feedback from three specialists (a Cultural Critic, a Terminologist, and a Tone Stylist).
+Use all feedback to improve the draft translation and make sure it aligns with the requested tone.
 
 Output ONLY the final translation, without any additional explanations or introductory text.
 
@@ -148,7 +161,10 @@ Cultural & Context Feedback:
 {{critic}}
 
 Terminology Feedback:
-{{terminologist}}'
+{{terminologist}}
+
+Tone & Vibe Feedback:
+{{stylist}}'
 )
 ON CONFLICT (key) DO UPDATE SET
   name_ru = EXCLUDED.name_ru,

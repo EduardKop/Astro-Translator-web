@@ -18,7 +18,7 @@ export interface Message {
 }
 
 // ── Step within a single loop iteration ─────────────────────────────────────
-export type StepName = "translator" | "critic" | "terminologist" | "refiner"
+export type StepName = "translator" | "critic" | "terminologist" | "stylist" | "refiner"
 
 export interface AgentStep {
   name: StepName
@@ -27,6 +27,7 @@ export interface AgentStep {
   prompt: string
   output: string
   status: "pending" | "in_progress" | "completed" | "error"
+  modelUsed?: string
 }
 
 // ── One complete loop ────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ export interface Manager {
 }
 
 // ── Prompt (editable via settings) ──────────────────────────────────────────
-export type PromptKey = "translator" | "critic" | "terminologist" | "refiner"
+export type PromptKey = "translator" | "critic" | "terminologist" | "stylist" | "refiner"
 
 export interface TranslatorPrompt {
   id: string

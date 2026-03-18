@@ -10,7 +10,8 @@ const OPENROUTER_DRAFT_MODEL =
   process.env.OPENROUTER_DRAFT_MODEL || OPENROUTER_DEFAULT_MODEL
 
 // ── OpenRouter call ───────────────────────────────────────────────────────────
-async function askAI(content: string, model?: string): Promise<string> {
+async function askAI(content: string, model?: string): Promise<{ content: string; modelUsed: string }> {
+  const actualModel = model || OPENROUTER_DEFAULT_MODEL
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -20,7 +21,7 @@ async function askAI(content: string, model?: string): Promise<string> {
       "X-Title": "AstroTranslator Web",
     },
     body: JSON.stringify({
-      model: model || OPENROUTER_DEFAULT_MODEL,
+      model: actualModel,
       messages: [{ role: "user", content }],
       temperature: 0.7,
     }),
@@ -32,7 +33,10 @@ async function askAI(content: string, model?: string): Promise<string> {
   }
 
   const data = await response.json()
-  return data.choices[0].message.content.trim()
+  return {
+    content: data.choices[0].message.content.trim(),
+    modelUsed: data.model || actualModel,
+  }
 }
 
 function makeStep(
@@ -40,9 +44,10 @@ function makeStep(
   nameRu: string,
   description: string,
   prompt: string,
-  output: string
+  output: string,
+  modelUsed?: string
 ): AgentStep {
-  return { name, nameRu, description, prompt, output, status: "completed" }
+  return { name, nameRu, description, prompt, output, status: "completed", modelUsed }
 }
 
 // ── Template renderer — replaces {{var}} placeholders ────────────────────────
@@ -71,7 +76,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { text, targetCountry, targetLang } = await req.json()
+    const { text, targetCountry, targetLang, tone } = await req.json()
 
     if (!text || !targetCountry) {
       return NextResponse.json({ error: "Missing text or targetCountry" }, { status: 400 })
@@ -99,36 +104,50 @@ export async function POST(req: Request) {
         // Stage 1: Translator (Draft)
         await sendEvent({ type: "start", agent: "translator" })
         const tp = render(dbPrompts["translator"], { targetLang: lang, targetCountry, userText: text })
-        const translatorOutput = await askAI(tp, OPENROUTER_DRAFT_MODEL)
-        const stepTranslator = makeStep("translator", "Переводчик", "Создаёт первичный черновик перевода", tp, translatorOutput)
+        const translatorRes = await askAI(tp, OPENROUTER_DRAFT_MODEL)
+        const stepTranslator = makeStep("translator", "Переводчик", "Создаёт первичный черновик перевода", tp, translatorRes.content, translatorRes.modelUsed)
         steps.push(stepTranslator)
         await sendEvent({ type: "done", agent: "translator", step: stepTranslator })
 
-        // Stage 2 & 3: Critic and Terminologist (Parallel execution)
+        // Stage 2, 3, 4: Critic, Terminologist and Stylist (Parallel execution)
         await sendEvent({ type: "start", agent: "critic" })
         await sendEvent({ type: "start", agent: "terminologist" })
+        await sendEvent({ type: "start", agent: "stylist" })
         
-        const cp = render(dbPrompts["critic"], { targetCountry, userText: text, translator: translatorOutput })
-        const termP = render(dbPrompts["terminologist"], { targetCountry, userText: text, translator: translatorOutput })
+        const cp = render(dbPrompts["critic"], { targetCountry, userText: text, translator: translatorRes.content })
+        const termP = render(dbPrompts["terminologist"], { targetCountry, userText: text, translator: translatorRes.content })
+        const sp = render(dbPrompts["stylist"], { targetCountry, userText: text, translator: translatorRes.content, tone: tone || "Стандартный перевод" })
         
-        const [criticOutput, terminologistOutput] = await Promise.all([
+        const [criticRes, terminologistRes, stylistRes] = await Promise.all([
           askAI(cp),
-          askAI(termP)
+          askAI(termP),
+          askAI(sp)
         ])
         
-        const stepCritic = makeStep("critic", "Критик (Cultural & Context)", "Пишет замечания по контексту и стилю", cp, criticOutput)
-        const stepTerm = makeStep("terminologist", "Специалист по терминам", "Проверяет терминологию и имена", termP, terminologistOutput)
+        const stepCritic = makeStep("critic", "Критик (Cultural & Context)", "Пишет замечания по контексту и стилю", cp, criticRes.content, criticRes.modelUsed)
+        const stepTerm = makeStep("terminologist", "Специалист по терминам", "Проверяет терминологию и имена", termP, terminologistRes.content, terminologistRes.modelUsed)
+        const stepStylist = makeStep("stylist", "Стилист (Tone & Vibe)", "Оценивает и адаптирует эмоциональный окрас", sp, stylistRes.content, stylistRes.modelUsed)
+        
         steps.push(stepCritic)
         steps.push(stepTerm)
+        steps.push(stepStylist)
         
         await sendEvent({ type: "done", agent: "critic", step: stepCritic })
         await sendEvent({ type: "done", agent: "terminologist", step: stepTerm })
+        await sendEvent({ type: "done", agent: "stylist", step: stepStylist })
 
-        // Stage 4: Refiner
+        // Stage 5: Refiner
         await sendEvent({ type: "start", agent: "refiner" })
-        const rp = render(dbPrompts["refiner"], { targetCountry, userText: text, translator: translatorOutput, critic: criticOutput, terminologist: terminologistOutput })
-        const finalTranslation = await askAI(rp, OPENROUTER_DRAFT_MODEL)
-        const stepRefiner = makeStep("refiner", "Редактор (Final Refiner)", "Формирует финальный текст", rp, finalTranslation)
+        const rp = render(dbPrompts["refiner"], { 
+          targetCountry, 
+          userText: text, 
+          translator: translatorRes.content, 
+          critic: criticRes.content, 
+          terminologist: terminologistRes.content,
+          stylist: stylistRes.content
+        })
+        const finalRes = await askAI(rp, OPENROUTER_DRAFT_MODEL)
+        const stepRefiner = makeStep("refiner", "Редактор (Final Refiner)", "Формирует финальный текст", rp, finalRes.content, finalRes.modelUsed)
         steps.push(stepRefiner)
         await sendEvent({ type: "done", agent: "refiner", step: stepRefiner })
 
@@ -143,7 +162,7 @@ export async function POST(req: Request) {
             target_country: targetCountry,
             target_lang:    lang,
             source_text:    text,
-            translation:    finalTranslation,
+            translation:    finalRes.content,
             total_loops:    loopCount,
             loops_json:     loops,
             status:         "completed",
@@ -152,7 +171,7 @@ export async function POST(req: Request) {
           console.error("Failed to save translation:", dbErr)
         }
 
-        await sendEvent({ type: "finish", translation: finalTranslation, loops, totalLoops: loopCount })
+        await sendEvent({ type: "finish", translation: finalRes.content, loops, totalLoops: loopCount })
       } catch (err: any) {
         console.error("Pipeline Error:", err)
         await sendEvent({ type: "error", error: err.message || "Internal Server Error" })

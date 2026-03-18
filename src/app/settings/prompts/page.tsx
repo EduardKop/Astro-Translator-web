@@ -8,7 +8,8 @@ import { TranslatorPrompt } from "@/types"
 const STEP_META: Record<string, { color: string }> = {
   translator:    { color: "text-blue-400" },
   critic:        { color: "text-amber-400" },
-  terminologist: { color: "text-violet-400" },
+  terminologist: { color: "text-indigo-400" },
+  stylist:       { color: "text-pink-400" },
   refiner:       { color: "text-emerald-400" },
 }
 
@@ -98,7 +99,8 @@ export default function PromptsSettingsPage() {
               <code className="bg-black/20 px-1 rounded">{"{{userText}}"}</code>{" "}
               <code className="bg-black/20 px-1 rounded">{"{{translator}}"}</code>{" "}
               <code className="bg-black/20 px-1 rounded">{"{{critic}}"}</code>{" "}
-              <code className="bg-black/20 px-1 rounded">{"{{terminologist}}"}</code>
+              <code className="bg-black/20 px-1 rounded">{"{{terminologist}}"}</code>{" "}
+              <code className="bg-black/20 px-1 rounded">{"{{stylist}}"}</code>
             </p>
           </div>
 

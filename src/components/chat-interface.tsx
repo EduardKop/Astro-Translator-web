@@ -9,13 +9,19 @@ export function ChatInterface({
   setInput,
   onSend,
   isLoading,
+  tone,
+  setTone,
 }: {
   messages: Message[]
   input: string
   setInput: (v: string) => void
   onSend: () => void
   isLoading: boolean
+  tone: string
+  setTone: (v: string) => void
 }) {
+  const TONES = ["Душевная / Добрая", "Стандартный перевод", "Красочный"]
+
   return (
     <div className="flex flex-col h-full bg-background border-r">
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -55,7 +61,39 @@ export function ChatInterface({
         )}
       </div>
 
-      <div className="p-3 sm:p-5 bg-card border-t">
+      <div className="p-3 sm:p-5 bg-card border-t flex flex-col gap-3">
+        {/* Tone Selector */}
+        <div className="w-full">
+          {/* Mobile Select */}
+          <div className="sm:hidden">
+            <select
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+              className="w-full bg-background border shadow-sm rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
+            >
+              {TONES.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          {/* Desktop Buttons */}
+          <div className="hidden sm:flex gap-2 w-full">
+            {TONES.map(t => (
+              <button
+                key={t}
+                onClick={() => setTone(t)}
+                className={`flex-1 py-2 px-3 rounded-xl border text-sm font-medium transition-all ${
+                  tone === t 
+                    ? "bg-primary/10 border-primary text-primary shadow-[0_0_8px_rgba(59,130,246,0.15)]" 
+                    : "bg-background border-border hover:bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <form
           onSubmit={(e) => {
             e.preventDefault()

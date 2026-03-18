@@ -23,6 +23,7 @@ export default function Home() {
   const [history, setHistory]           = useState<HistoryEntry[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [user, setUser]                 = useState<Manager | null>(null)
+  const [tone, setTone]                 = useState("Стандартный перевод")
 
   // Load current user
   useEffect(() => {
@@ -45,6 +46,9 @@ export default function Home() {
         }
       })
       .catch(() => {})
+
+    const savedTone = localStorage.getItem("selectedTone")
+    if (savedTone) setTone(savedTone)
   }, [])
 
   // Load history from API
@@ -81,6 +85,7 @@ export default function Home() {
       { name: "translator", nameRu: "Переводчик", description: "Создаёт первичный черновик перевода", prompt: "", output: "", status: "pending" },
       { name: "critic", nameRu: "Критик (Cultural & Context)", description: "Пишет замечания по контексту и стилю", prompt: "", output: "", status: "pending" },
       { name: "terminologist", nameRu: "Специалист по терминам", description: "Проверяет терминологию и имена", prompt: "", output: "", status: "pending" },
+      { name: "stylist", nameRu: "Стилист (Tone & Vibe)", description: "Оценивает и адаптирует эмоциональный окрас", prompt: "", output: "", status: "pending" },
       { name: "refiner", nameRu: "Редактор (Final Refiner)", description: "Формирует финальный текст", prompt: "", output: "", status: "pending" },
     ]
 
@@ -100,7 +105,7 @@ export default function Home() {
       const response = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: userMessage.content, targetCountry: selectedCountry }),
+        body: JSON.stringify({ text: userMessage.content, targetCountry: selectedCountry, tone }),
       })
 
       if (!response.ok) {
@@ -211,6 +216,11 @@ export default function Home() {
             setInput={setInput}
             onSend={handleSend}
             isLoading={isLoading}
+            tone={tone}
+            setTone={(newTone) => {
+              setTone(newTone)
+              localStorage.setItem("selectedTone", newTone)
+            }}
           />
         </div>
 
