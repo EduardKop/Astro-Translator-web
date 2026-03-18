@@ -8,6 +8,8 @@ const OPENROUTER_DEFAULT_MODEL =
   process.env.OPENROUTER_DEFAULT_MODEL || "google/gemini-2.5-flash"
 const OPENROUTER_DRAFT_MODEL =
   process.env.OPENROUTER_DRAFT_MODEL || OPENROUTER_DEFAULT_MODEL
+const OPENROUTER_REFINER_MODEL =
+  process.env.OPENROUTER_REFINER_MODEL || OPENROUTER_DEFAULT_MODEL
 
 // ── OpenRouter call ───────────────────────────────────────────────────────────
 async function askAI(content: string, model?: string): Promise<{ content: string; modelUsed: string }> {
@@ -146,7 +148,7 @@ export async function POST(req: Request) {
           terminologist: terminologistRes.content,
           stylist: stylistRes.content
         })
-        const finalRes = await askAI(rp, OPENROUTER_DRAFT_MODEL)
+        const finalRes = await askAI(rp, OPENROUTER_REFINER_MODEL)
         const stepRefiner = makeStep("refiner", "Редактор (Final Refiner)", "Формирует финальный текст", rp, finalRes.content, finalRes.modelUsed)
         steps.push(stepRefiner)
         await sendEvent({ type: "done", agent: "refiner", step: stepRefiner })
