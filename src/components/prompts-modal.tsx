@@ -5,10 +5,10 @@ import { Settings, Save, Loader2, CheckCircle2, AlertCircle, X } from "lucide-re
 import { TranslatorPrompt } from "@/types"
 
 const STEP_META: Record<string, { color: string; dot: string }> = {
-  draft:    { color: "text-blue-400",    dot: "bg-blue-400" },
-  critique: { color: "text-amber-400",   dot: "bg-amber-400" },
-  polish:   { color: "text-violet-400",  dot: "bg-violet-400" },
-  quality:  { color: "text-emerald-400", dot: "bg-emerald-400" },
+  translator:    { color: "text-blue-400",    dot: "bg-blue-400" },
+  critic:        { color: "text-amber-400",   dot: "bg-amber-400" },
+  terminologist: { color: "text-violet-400",  dot: "bg-violet-400" },
+  refiner:       { color: "text-emerald-400", dot: "bg-emerald-400" },
 }
 
 export function PromptsModal({ onClose }: { onClose: () => void }) {
@@ -18,7 +18,7 @@ export function PromptsModal({ onClose }: { onClose: () => void }) {
   const [saved, setSaved]     = useState<string | null>(null)
   const [error, setError]     = useState<string | null>(null)
   const [edited, setEdited]   = useState<Record<string, string>>({})
-  const [active, setActive]   = useState<string>("draft")
+  const [active, setActive]   = useState<string>("translator")
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -147,7 +147,7 @@ export function PromptsModal({ onClose }: { onClose: () => void }) {
               <div className="mx-4 mt-3 mb-2 bg-amber-500/5 border border-amber-500/15 rounded-xl px-3 py-2 flex-shrink-0">
                 <p className="text-[10px] text-amber-400/70 leading-relaxed">
                   <span className="font-semibold">Плейсхолдеры: </span>
-                  {["{{targetCountry}}", "{{targetLang}}", "{{userText}}", "{{draft}}", "{{critique}}", "{{originalText}}", "{{polishedText}}", "{{feedbackBlock}}"].map((ph) => (
+                  {["{{targetCountry}}", "{{targetLang}}", "{{userText}}", "{{translator}}", "{{critic}}", "{{terminologist}}"].map((ph) => (
                     <code key={ph} className="bg-black/20 px-1 py-0.5 rounded mx-0.5 font-mono">{ph}</code>
                   ))}
                 </p>

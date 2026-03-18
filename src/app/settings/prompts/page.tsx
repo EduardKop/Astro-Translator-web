@@ -6,10 +6,10 @@ import { Settings, ArrowLeft, Save, Loader2, CheckCircle2, AlertCircle } from "l
 import { TranslatorPrompt } from "@/types"
 
 const STEP_META: Record<string, { color: string }> = {
-  draft:    { color: "text-blue-400" },
-  critique: { color: "text-amber-400" },
-  polish:   { color: "text-violet-400" },
-  quality:  { color: "text-emerald-400" },
+  translator:    { color: "text-blue-400" },
+  critic:        { color: "text-amber-400" },
+  terminologist: { color: "text-violet-400" },
+  refiner:       { color: "text-emerald-400" },
 }
 
 export default function PromptsSettingsPage() {
@@ -96,11 +96,9 @@ export default function PromptsSettingsPage() {
               <code className="bg-black/20 px-1 rounded">{"{{targetCountry}}"}</code>{" "}
               <code className="bg-black/20 px-1 rounded">{"{{targetLang}}"}</code>{" "}
               <code className="bg-black/20 px-1 rounded">{"{{userText}}"}</code>{" "}
-              <code className="bg-black/20 px-1 rounded">{"{{draft}}"}</code>{" "}
-              <code className="bg-black/20 px-1 rounded">{"{{critique}}"}</code>{" "}
-              <code className="bg-black/20 px-1 rounded">{"{{originalText}}"}</code>{" "}
-              <code className="bg-black/20 px-1 rounded">{"{{polishedText}}"}</code>{" "}
-              <code className="bg-black/20 px-1 rounded">{"{{feedbackBlock}}"}</code>
+              <code className="bg-black/20 px-1 rounded">{"{{translator}}"}</code>{" "}
+              <code className="bg-black/20 px-1 rounded">{"{{critic}}"}</code>{" "}
+              <code className="bg-black/20 px-1 rounded">{"{{terminologist}}"}</code>
             </p>
           </div>
 

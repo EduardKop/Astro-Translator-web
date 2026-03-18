@@ -18,7 +18,7 @@ export interface Message {
 }
 
 // ── Step within a single loop iteration ─────────────────────────────────────
-export type StepName = "draft" | "critique" | "polish" | "quality"
+export type StepName = "translator" | "critic" | "terminologist" | "refiner"
 
 export interface AgentStep {
   name: StepName
@@ -86,7 +86,7 @@ export interface Manager {
 }
 
 // ── Prompt (editable via settings) ──────────────────────────────────────────
-export type PromptKey = "draft" | "critique" | "polish" | "quality"
+export type PromptKey = "translator" | "critic" | "terminologist" | "refiner"
 
 export interface TranslatorPrompt {
   id: string

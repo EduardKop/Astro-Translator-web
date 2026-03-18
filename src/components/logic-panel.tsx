@@ -148,7 +148,7 @@ function LoopBlock({ loop, isLast }: { loop: TranslationLoop; isLast: boolean })
             ? "bg-red-500/10 text-red-400"
             : "bg-amber-500/10 text-amber-400"
         }`}>
-          {passed === true ? "✓ Принят" : passed === false ? "✗ Повтор" : "В процессе"}
+          {passed === true ? "✓ Принят" : passed === false ? "✗ Повтор" : "Готово"}
         </span>
         <div className="flex-1 h-px bg-border/50" />
         <RefreshCw className={`w-3 h-3 text-muted-foreground/30 transition-transform ${collapsed ? "" : "rotate-180"}`} />
@@ -162,7 +162,7 @@ function LoopBlock({ loop, isLast }: { loop: TranslationLoop; isLast: boolean })
               key={step.name}
               step={step}
               index={idx}
-              defaultOpen={step.name === "quality" && !loop.qualityPassed}
+              defaultOpen={false}
             />
           ))}
         </div>

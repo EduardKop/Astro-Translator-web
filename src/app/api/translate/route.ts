@@ -85,45 +85,32 @@ export async function POST(req: Request) {
     const lang = targetLang || targetCountry
     const dbPrompts = await loadPrompts()
     const loops: TranslationLoop[] = []
+    const steps: AgentStep[] = []
 
-    let previousIssues: string | undefined = undefined
-    let finalTranslation = ""
-    let loopCount = 0
+    // Stage 1: Translator (Draft)
+    const tp = render(dbPrompts["translator"], { targetLang: lang, targetCountry, userText: text })
+    const translatorOutput = await askAI(tp, OPENROUTER_DRAFT_MODEL)
+    steps.push(makeStep("translator", "Переводчик", "Создаёт первичный черновик перевода", tp, translatorOutput))
 
-    for (let i = 0; i < MAX_LOOPS; i++) {
-      loopCount = i + 1
-      const steps: AgentStep[] = []
-      const feedbackBlock = previousIssues
-        ? `\n⚠️ PREVIOUS ATTEMPT FAILED QUALITY CHECK. Issues to fix:\n${previousIssues}\n`
-        : ""
+    // Stage 2 & 3: Critic and Terminologist (Parallel execution)
+    const cp = render(dbPrompts["critic"], { targetCountry, userText: text, translator: translatorOutput })
+    const termP = render(dbPrompts["terminologist"], { targetCountry, userText: text, translator: translatorOutput })
+    
+    const [criticOutput, terminologistOutput] = await Promise.all([
+      askAI(cp),
+      askAI(termP)
+    ])
+    
+    steps.push(makeStep("critic", "Критик (Cultural & Context)", "Пишет замечания по контексту и стилю", cp, criticOutput))
+    steps.push(makeStep("terminologist", "Специалист по терминам", "Проверяет терминологию и имена", termP, terminologistOutput))
 
-      // Stage 1: Draft (uses dedicated draft model)
-      const dp = render(dbPrompts["draft"], { targetLang: lang, targetCountry, feedbackBlock, userText: text })
-      const draft = await askAI(dp, OPENROUTER_DRAFT_MODEL)
-      steps.push(makeStep("draft", "Переводчик", "Создаёт первичный черновик перевода", dp, draft))
+    // Stage 4: Refiner
+    const rp = render(dbPrompts["refiner"], { targetCountry, userText: text, translator: translatorOutput, critic: criticOutput, terminologist: terminologistOutput })
+    const finalTranslation = await askAI(rp)
+    steps.push(makeStep("refiner", "Редактор (Final Refiner)", "Формирует финальный текст", rp, finalTranslation))
 
-      // Stage 2: Critique
-      const cp = render(dbPrompts["critique"], { targetCountry, draft })
-      const critique = await askAI(cp)
-      steps.push(makeStep("critique", "Нейтивный редактор", "Выявляет AI-тени и нативность", cp, critique))
-
-      // Stage 3: Polish
-      const pp = render(dbPrompts["polish"], { targetCountry, draft, critique })
-      const polished = await askAI(pp)
-      steps.push(makeStep("polish", "Контент-криэйтор", "Убирает признаки перевода и ИИ", pp, polished))
-
-      // Stage 4: Quality
-      const qp = render(dbPrompts["quality"], { targetCountry, originalText: text, polishedText: polished })
-      const qualityOutput = await askAI(qp)
-      const qualityPassed = qualityOutput.trim().toUpperCase().startsWith("PASS")
-      steps.push(makeStep("quality", "Контроль качества", "Финальная проверка точности и нативности", qp, qualityOutput))
-
-      loops.push({ loopNumber: loopCount, steps, qualityPassed })
-      finalTranslation = polished
-
-      if (qualityPassed) break
-      previousIssues = qualityOutput.replace(/^FAIL[:\s]*/i, "").trim()
-    }
+    const loopCount = 1
+    loops.push({ loopNumber: loopCount, steps, qualityPassed: true })
 
     // Save to Supabase
     try {

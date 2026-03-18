@@ -19,6 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at);
 
 -- RLS: доступ только через service_role (anon не читает)
 ALTER TABLE auth_tokens ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "service_only" ON auth_tokens;
 CREATE POLICY "service_only" ON auth_tokens USING (false);
 
 
@@ -46,6 +47,7 @@ CREATE INDEX IF NOT EXISTS idx_translator_translations_created
 ALTER TABLE translator_translations ENABLE ROW LEVEL SECURITY;
 
 -- Видят свои — Sales, Consultant, SMM
+DROP POLICY IF EXISTS "own_translations" ON translator_translations;
 CREATE POLICY "own_translations" ON translator_translations
   FOR SELECT USING (
     manager_id = (
@@ -55,6 +57,7 @@ CREATE POLICY "own_translations" ON translator_translations
   );
 
 -- Видят все — C-level, Admin, SeniorSales, SeniorSMM
+DROP POLICY IF EXISTS "admin_all_translations" ON translator_translations;
 CREATE POLICY "admin_all_translations" ON translator_translations
   FOR SELECT USING (
     EXISTS (
@@ -65,6 +68,7 @@ CREATE POLICY "admin_all_translations" ON translator_translations
   );
 
 -- INSERT разрешён для всех аутентифицированных
+DROP POLICY IF EXISTS "insert_own" ON translator_translations;
 CREATE POLICY "insert_own" ON translator_translations
   FOR INSERT WITH CHECK (true);
 
@@ -75,7 +79,7 @@ CREATE TABLE IF NOT EXISTS translator_prompts (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now(),
-  key         text UNIQUE NOT NULL,   -- 'draft' | 'critique' | 'polish' | 'quality'
+  key         text UNIQUE NOT NULL,   -- 'translator' | 'critic' | 'terminologist' | 'refiner'
   name_ru     text NOT NULL,
   description text,
   template    text NOT NULL           -- текст промпта с плейсхолдерами {{targetCountry}} и т.д.
@@ -84,89 +88,72 @@ CREATE TABLE IF NOT EXISTS translator_prompts (
 -- Вставляем дефолтные промпты
 INSERT INTO translator_prompts (key, name_ru, description, template) VALUES
 (
-  'draft',
+  'translator',
   'Переводчик',
-  'Чистый 1:1 перевод без добавлений',
+  'Создаёт первичный черновик перевода, максимально близкий к смыслу',
   'You are a professional translator. Translate the text below into {{targetLang}} ({{targetCountry}}).
-{{feedbackBlock}}
-Rules:
-- Output ONLY the translated text. Nothing else.
-- Do NOT add greetings, conclusions, explanations, or any text not in the original.
-- Do NOT remove any sentences. Every sentence in = every sentence out.
-- Keep all emojis and paragraph breaks exactly as they are.
-- Use the natural, modern dialect spoken in {{targetCountry}}.
-- Address the recipient informally (singular "you"). Never use formal address.
-- The recipient is female. Use feminine verb/adjective forms where applicable.
+Make the translation as accurate and close to the original meaning as possible.
 
-Text to translate:
+Original text:
 {{userText}}'
 ),
 (
-  'critique',
-  'Нейтивный редактор',
-  'Ищет роботизированные фразы и предлагает замены',
-  'You are a native SMM editor from {{targetCountry}}.
+  'critic',
+  'Критик (Cultural & Context)',
+  'Пишет замечания по идиомам, культурному контексту и стилю',
+  'You are a Cultural & Context Critic. Review the translation below for a {{targetCountry}} audience.
+DO NOT provide a new translation. Instead, provide a list of bullet-point suggestions/corrections focusing on:
+- Idioms and cultural context
+- Tone and style
+- Natural phrasing for {{targetCountry}}
 
-Read the translation below. Your only job is to identify phrases that sound robotic, translated, or unnatural — and suggest a warmer, more native alternative for each one.
+Original text:
+{{userText}}
 
-Rules:
-- Do NOT rewrite the full text.
-- Do NOT add new sentences or ideas.
-- Output ONLY bullet points: [original phrase] → [suggested fix].
-- Focus on tone: it should feel warm, soulful, effortless — like a real person wrote it.
-
-Translation:
-{{draft}}'
+Draft Translation:
+{{translator}}'
 ),
 (
-  'polish',
-  'Контент-криэйтор',
-  'Убирает признаки ИИ, адаптирует под менталитет страны',
-  'You are rewriting a translated text to remove all traces of AI and machine translation.
+  'terminologist',
+  'Специалист по терминам',
+  'Проверяет терминологию и единообразие имён/названий',
+  'You are a Terminology & Glossary Specialist. Review the translation below.
+DO NOT provide a new translation. Instead, provide a list of bullet-point suggestions/corrections focusing on:
+- Correct translation of technical terms, names, and concepts
+- Consistency of terminology
 
-Your only job: make the text sound exactly like a real person from {{targetCountry}} wrote it — using the natural communication style, expressions, rhythm, and emotional warmth typical of that country''s culture.
+Original text:
+{{userText}}
 
-Rules:
-- Output ONLY the final text. No labels, no comments, no preamble.
-- Do NOT add any sentences not present in the draft. Do NOT remove any sentences.
-- Eliminate any phrasing that sounds robotic, overly formal, or like it came from a machine.
-- Use the specific speech patterns, colloquialisms, and emotional register of {{targetCountry}}.
-- The result must feel like a real person from {{targetCountry}} typed this — not a translation.
-- Preserve all emojis and paragraph formatting exactly as in the draft.
-
---- DRAFT ---
-{{draft}}
-
---- CRITIQUE NOTES ---
-{{critique}}'
+Draft Translation:
+{{translator}}'
 ),
 (
-  'quality',
-  'Контроль качества',
-  'PASS или FAIL — финальная проверка',
-  'You are a quality reviewer for SMM translations targeting {{targetCountry}}.
+  'refiner',
+  'Редактор (Final Refiner)',
+  'Формирует финальный текст с учётом всех правок',
+  'You are an expert Final Refiner. Your task is to produce the final, polished translation for a {{targetCountry}} audience.
+You are provided with the original text, a rough draft translation, and feedback from two specialists (a Cultural Critic and a Terminologist).
+Use the feedback to improve the draft translation.
 
-Compare the translation to the original. Return ONLY one of:
-- "PASS" — translation is accurate, native-sounding, feminine, warm, and matches the original 1:1.
-- "FAIL: <brief bullet list of specific issues>" — if any critical problems remain.
+Output ONLY the final translation, without any additional explanations or introductory text.
 
-Criteria:
-1. No additions or omissions — every sentence maps 1:1.
-2. Sounds like a real native wrote it, not a translation.
-3. Feminine verb/adjective forms used where applicable.
-4. Informal address only — no formal pronouns.
-5. Tone is warm and natural, matching how women in {{targetCountry}} actually speak.
-6. No AI-sounding or robotic phrasing.
+Original text:
+{{userText}}
 
---- ORIGINAL ---
-{{originalText}}
+Draft Translation:
+{{translator}}
 
---- TRANSLATION ---
-{{polishedText}}
+Cultural & Context Feedback:
+{{critic}}
 
-Your verdict (PASS or FAIL: ...):'
+Terminology Feedback:
+{{terminologist}}'
 )
-ON CONFLICT (key) DO NOTHING;
+ON CONFLICT (key) DO UPDATE SET
+  name_ru = EXCLUDED.name_ru,
+  description = EXCLUDED.description,
+  template = EXCLUDED.template;
 
 -- Триггер updated_at
 CREATE OR REPLACE FUNCTION update_updated_at()
@@ -174,6 +161,7 @@ RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS translator_prompts_updated_at ON translator_prompts;
 CREATE TRIGGER translator_prompts_updated_at
   BEFORE UPDATE ON translator_prompts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -182,9 +170,11 @@ CREATE TRIGGER translator_prompts_updated_at
 ALTER TABLE translator_prompts ENABLE ROW LEVEL SECURITY;
 
 -- Читают все
+DROP POLICY IF EXISTS "prompts_read_all" ON translator_prompts;
 CREATE POLICY "prompts_read_all" ON translator_prompts FOR SELECT USING (true);
 
 -- Редактируют только Admin/C-level/SeniorSMM/SeniorSales
+DROP POLICY IF EXISTS "prompts_write_admin" ON translator_prompts;
 CREATE POLICY "prompts_write_admin" ON translator_prompts
   FOR ALL USING (
     EXISTS (
