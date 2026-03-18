@@ -23,7 +23,6 @@ async function askAI(content: string, model?: string): Promise<string> {
       model: model || OPENROUTER_DEFAULT_MODEL,
       messages: [{ role: "user", content }],
       temperature: 0.7,
-      max_tokens: 1500,
     }),
   })
 
