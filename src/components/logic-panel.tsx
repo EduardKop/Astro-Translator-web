@@ -50,6 +50,18 @@ function StepCard({ step, index, defaultOpen }: { step: AgentStep; index: number
   const meta = STEP_META[step.name] ?? STEP_META.draft
 
   const Icon = meta.icon
+  
+  const [elapsed, setElapsed] = useState(0)
+  
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (step.status === "in_progress") {
+      interval = setInterval(() => setElapsed((prev) => prev + 1), 1000)
+    }
+    return () => clearInterval(interval)
+  }, [step.status])
+
+  const timeStr = `${Math.floor(elapsed / 60).toString().padStart(2, "0")}:${(elapsed % 60).toString().padStart(2, "0")}`
 
   return (
     <div
@@ -62,12 +74,19 @@ function StepCard({ step, index, defaultOpen }: { step: AgentStep; index: number
         className="w-full flex items-center gap-2.5 px-3 py-2 text-left group"
       >
         <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${meta.color}`} />
-        <div className="flex-1 min-w-0">
-          <span className={`text-[11px] font-semibold ${meta.color}`}>{step.nameRu}</span>
-          <p className="text-[10px] text-muted-foreground/70 leading-tight truncate mt-0.5">
-            {step.description}
-          </p>
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <div>
+            <span className={`text-[11px] font-semibold ${meta.color}`}>{step.nameRu}</span>
+            <p className="text-[10px] text-muted-foreground/70 leading-tight truncate mt-0.5">
+              {step.description}
+            </p>
+          </div>
         </div>
+        
+        {step.status === "in_progress" && (
+          <span className="text-[10px] text-amber-400/80 font-mono flex-shrink-0 mr-1">{timeStr}</span>
+        )}
+
         {step.status === "in_progress" ? (
           <Loader2 className="w-3 h-3 text-amber-400 animate-spin flex-shrink-0" />
         ) : step.status === "completed" ? (

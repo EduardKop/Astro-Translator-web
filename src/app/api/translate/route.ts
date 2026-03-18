@@ -81,54 +81,94 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing API Key" }, { status: 500 })
     }
 
-    const lang = targetLang || targetCountry
-    const dbPrompts = await loadPrompts()
-    const loops: TranslationLoop[] = []
-    const steps: AgentStep[] = []
+    const encoder = new TextEncoder()
+    const stream = new TransformStream()
+    const writer = stream.writable.getWriter()
 
-    // Stage 1: Translator (Draft)
-    const tp = render(dbPrompts["translator"], { targetLang: lang, targetCountry, userText: text })
-    const translatorOutput = await askAI(tp, OPENROUTER_DRAFT_MODEL)
-    steps.push(makeStep("translator", "Переводчик", "Создаёт первичный черновик перевода", tp, translatorOutput))
-
-    // Stage 2 & 3: Critic and Terminologist (Parallel execution)
-    const cp = render(dbPrompts["critic"], { targetCountry, userText: text, translator: translatorOutput })
-    const termP = render(dbPrompts["terminologist"], { targetCountry, userText: text, translator: translatorOutput })
-    
-    const [criticOutput, terminologistOutput] = await Promise.all([
-      askAI(cp),
-      askAI(termP)
-    ])
-    
-    steps.push(makeStep("critic", "Критик (Cultural & Context)", "Пишет замечания по контексту и стилю", cp, criticOutput))
-    steps.push(makeStep("terminologist", "Специалист по терминам", "Проверяет терминологию и имена", termP, terminologistOutput))
-
-    // Stage 4: Refiner
-    const rp = render(dbPrompts["refiner"], { targetCountry, userText: text, translator: translatorOutput, critic: criticOutput, terminologist: terminologistOutput })
-    const finalTranslation = await askAI(rp, OPENROUTER_DRAFT_MODEL)
-    steps.push(makeStep("refiner", "Редактор (Final Refiner)", "Формирует финальный текст", rp, finalTranslation))
-
-    const loopCount = 1
-    loops.push({ loopNumber: loopCount, steps, qualityPassed: true })
-
-    // Save to Supabase
-    try {
-      await supabase.from("translator_translations").insert({
-        manager_id:     session.id,
-        manager_name:   session.name,
-        target_country: targetCountry,
-        target_lang:    lang,
-        source_text:    text,
-        translation:    finalTranslation,
-        total_loops:    loopCount,
-        loops_json:     loops,
-        status:         "completed",
-      })
-    } catch (dbErr) {
-      console.error("Failed to save translation:", dbErr)
+    const sendEvent = async (event: any) => {
+      await writer.write(encoder.encode(JSON.stringify(event) + "\n"))
     }
 
-    return NextResponse.json({ translation: finalTranslation, loops, totalLoops: loopCount })
+    // Start background processing
+    ;(async () => {
+      try {
+        const lang = targetLang || targetCountry
+        const dbPrompts = await loadPrompts()
+        const loops: TranslationLoop[] = []
+        const steps: AgentStep[] = []
+
+        // Stage 1: Translator (Draft)
+        await sendEvent({ type: "start", agent: "translator" })
+        const tp = render(dbPrompts["translator"], { targetLang: lang, targetCountry, userText: text })
+        const translatorOutput = await askAI(tp, OPENROUTER_DRAFT_MODEL)
+        const stepTranslator = makeStep("translator", "Переводчик", "Создаёт первичный черновик перевода", tp, translatorOutput)
+        steps.push(stepTranslator)
+        await sendEvent({ type: "done", agent: "translator", step: stepTranslator })
+
+        // Stage 2 & 3: Critic and Terminologist (Parallel execution)
+        await sendEvent({ type: "start", agent: "critic" })
+        await sendEvent({ type: "start", agent: "terminologist" })
+        
+        const cp = render(dbPrompts["critic"], { targetCountry, userText: text, translator: translatorOutput })
+        const termP = render(dbPrompts["terminologist"], { targetCountry, userText: text, translator: translatorOutput })
+        
+        const [criticOutput, terminologistOutput] = await Promise.all([
+          askAI(cp),
+          askAI(termP)
+        ])
+        
+        const stepCritic = makeStep("critic", "Критик (Cultural & Context)", "Пишет замечания по контексту и стилю", cp, criticOutput)
+        const stepTerm = makeStep("terminologist", "Специалист по терминам", "Проверяет терминологию и имена", termP, terminologistOutput)
+        steps.push(stepCritic)
+        steps.push(stepTerm)
+        
+        await sendEvent({ type: "done", agent: "critic", step: stepCritic })
+        await sendEvent({ type: "done", agent: "terminologist", step: stepTerm })
+
+        // Stage 4: Refiner
+        await sendEvent({ type: "start", agent: "refiner" })
+        const rp = render(dbPrompts["refiner"], { targetCountry, userText: text, translator: translatorOutput, critic: criticOutput, terminologist: terminologistOutput })
+        const finalTranslation = await askAI(rp, OPENROUTER_DRAFT_MODEL)
+        const stepRefiner = makeStep("refiner", "Редактор (Final Refiner)", "Формирует финальный текст", rp, finalTranslation)
+        steps.push(stepRefiner)
+        await sendEvent({ type: "done", agent: "refiner", step: stepRefiner })
+
+        const loopCount = 1
+        loops.push({ loopNumber: loopCount, steps, qualityPassed: true })
+
+        // Save to Supabase
+        try {
+          await supabase.from("translator_translations").insert({
+            manager_id:     session.id,
+            manager_name:   session.name,
+            target_country: targetCountry,
+            target_lang:    lang,
+            source_text:    text,
+            translation:    finalTranslation,
+            total_loops:    loopCount,
+            loops_json:     loops,
+            status:         "completed",
+          })
+        } catch (dbErr) {
+          console.error("Failed to save translation:", dbErr)
+        }
+
+        await sendEvent({ type: "finish", translation: finalTranslation, loops, totalLoops: loopCount })
+      } catch (err: any) {
+        console.error("Pipeline Error:", err)
+        await sendEvent({ type: "error", error: err.message || "Internal Server Error" })
+      } finally {
+        await writer.close()
+      }
+    })()
+
+    return new Response(stream.readable, {
+      headers: {
+        "Content-Type": "application/x-ndjson",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive"
+      }
+    })
 
   } catch (err: any) {
     console.error("API Error:", err)

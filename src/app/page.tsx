@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { AgentLog, HistoryEntry, Country, Message, TranslationLoop, Manager, ADMIN_ROLES } from "@/types"
+import { AgentLog, HistoryEntry, Country, Message, TranslationLoop, Manager, ADMIN_ROLES, AgentStep } from "@/types"
 import { Navbar } from "@/components/navbar"
 import { ChatInterface } from "@/components/chat-interface"
 import { LogicPanel } from "@/components/logic-panel"
@@ -76,11 +76,19 @@ export default function Home() {
     setRightTab("pipeline")
 
     const logId = Date.now().toString()
+
+    const initialSteps: AgentStep[] = [
+      { name: "translator", nameRu: "Переводчик", description: "Создаёт первичный черновик перевода", prompt: "", output: "", status: "pending" },
+      { name: "critic", nameRu: "Критик (Cultural & Context)", description: "Пишет замечания по контексту и стилю", prompt: "", output: "", status: "pending" },
+      { name: "terminologist", nameRu: "Специалист по терминам", description: "Проверяет терминологию и имена", prompt: "", output: "", status: "pending" },
+      { name: "refiner", nameRu: "Редактор (Final Refiner)", description: "Формирует финальный текст", prompt: "", output: "", status: "pending" },
+    ]
+
     const pendingLog: AgentLog = {
       id: logId,
       sourceText: userMessage.content,
       targetCountry: selectedCountry,
-      loops: [],
+      loops: [{ loopNumber: 1, steps: initialSteps, qualityPassed: null }],
       finalTranslation: "",
       totalLoops: 0,
       status: "in_progress",
@@ -95,27 +103,74 @@ export default function Home() {
         body: JSON.stringify({ text: userMessage.content, targetCountry: selectedCountry }),
       })
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || "Translation failed")
+      if (!response.ok) {
+        const d = await response.json().catch(() => ({}))
+        throw new Error(d.error || "Translation failed")
+      }
 
-      const loops: TranslationLoop[] = data.loops ?? []
-      const translation: string = data.translation
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error("No reader")
 
-      setLogs((prev) =>
-        prev.map((log) =>
-          log.id === logId
-            ? { ...log, loops, finalTranslation: translation, totalLoops: data.totalLoops, status: "completed" }
-            : log
-        )
-      )
+      const decoder = new TextDecoder()
+      let partialData = ""
 
-      setMessages((prev) => [
-        ...prev,
-        { id: (Date.now() + 1).toString(), role: "assistant", content: translation },
-      ])
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
 
-      // Refresh history from API
-      loadHistory()
+        partialData += decoder.decode(value, { stream: true })
+        const lines = partialData.split("\n")
+        partialData = lines.pop() || ""
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          const event = JSON.parse(line)
+
+          if (event.type === "start" || event.type === "done" || event.type === "finish") {
+            setLogs((prev) =>
+              prev.map((log) => {
+                if (log.id !== logId) return log
+
+                if (event.type === "finish") {
+                  console.log("Translation JSON:", JSON.stringify(event.loops, null, 2))
+                  return {
+                    ...log,
+                    loops: event.loops,
+                    finalTranslation: event.translation,
+                    totalLoops: event.totalLoops,
+                    status: "completed",
+                  }
+                }
+
+                // Handling start or done
+                const loop = log.loops[0]
+                const steps = [...loop.steps]
+                const stepIdx = steps.findIndex((s) => s.name === event.agent)
+
+                if (stepIdx > -1) {
+                  if (event.type === "start") {
+                    steps[stepIdx] = { ...steps[stepIdx], status: "in_progress" }
+                  } else if (event.type === "done") {
+                    steps[stepIdx] = event.step
+                  }
+                }
+
+                return { ...log, loops: [{ ...loop, steps }] }
+              })
+            )
+          }
+
+          if (event.type === "finish") {
+            setMessages((prev) => [
+              ...prev,
+              { id: (Date.now() + 1).toString(), role: "assistant", content: event.translation },
+            ])
+            loadHistory()
+          } else if (event.type === "error") {
+            throw new Error(event.error)
+          }
+        }
+      }
 
     } catch (error) {
       console.error(error)
