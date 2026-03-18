@@ -6,10 +6,12 @@ import { supabase } from "@/lib/supabase"
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_DEFAULT_MODEL =
   process.env.OPENROUTER_DEFAULT_MODEL || "google/gemini-2.5-flash"
+const OPENROUTER_DRAFT_MODEL =
+  process.env.OPENROUTER_DRAFT_MODEL || OPENROUTER_DEFAULT_MODEL
 const MAX_LOOPS = 3
 
 // ── OpenRouter call ───────────────────────────────────────────────────────────
-async function askAI(content: string): Promise<string> {
+async function askAI(content: string, model?: string): Promise<string> {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -19,7 +21,7 @@ async function askAI(content: string): Promise<string> {
       "X-Title": "AstroTranslator Web",
     },
     body: JSON.stringify({
-      model: OPENROUTER_DEFAULT_MODEL,
+      model: model || OPENROUTER_DEFAULT_MODEL,
       messages: [{ role: "user", content }],
       temperature: 0.7,
       max_tokens: 1500,
@@ -95,9 +97,9 @@ export async function POST(req: Request) {
         ? `\n⚠️ PREVIOUS ATTEMPT FAILED QUALITY CHECK. Issues to fix:\n${previousIssues}\n`
         : ""
 
-      // Stage 1: Draft
+      // Stage 1: Draft (uses dedicated draft model)
       const dp = render(dbPrompts["draft"], { targetLang: lang, targetCountry, feedbackBlock, userText: text })
-      const draft = await askAI(dp)
+      const draft = await askAI(dp, OPENROUTER_DRAFT_MODEL)
       steps.push(makeStep("draft", "Переводчик", "Создаёт первичный черновик перевода", dp, draft))
 
       // Stage 2: Critique

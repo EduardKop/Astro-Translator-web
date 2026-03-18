@@ -34,7 +34,7 @@ export function ChatInterface({
             className={`flex w-full ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[90%] sm:max-w-[80%] rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 shadow-sm text-sm sm:text-[15px] leading-relaxed ${
+              className={`max-w-[90%] sm:max-w-[80%] rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 shadow-sm text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap ${
                 m.role === "user"
                   ? "bg-primary text-primary-foreground rounded-tr-sm"
                   : "bg-card border text-card-foreground rounded-tl-sm"
